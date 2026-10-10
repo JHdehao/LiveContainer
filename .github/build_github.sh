@@ -1,6 +1,7 @@
 # copy lc
-wget https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
-chmod +x dylibify
+# LiveContainer/dylibify is unreachable; build upstream jakeajames/dylibify at a pinned commit
+curl -fsSL https://raw.githubusercontent.com/jakeajames/dylibify/17cc528402714ad1bd918cbb2ebcb6976e80540a/main.m -o dylibify.m || exit 1
+clang dylibify.m -framework Foundation -fobjc-arc -o dylibify || exit 1
 brew install ldid
 
 # move lc to working folder
@@ -41,7 +42,7 @@ mv ./tmp/SideStoreSupport.framework Payload/LiveContainer.app/Frameworks
 
 # download SideStore
 cd tmp
-wget https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
+curl -fsSL https://github.com/JHdehao/SideStore-LC/releases/download/nightly/SideStore.ipa -o SideStore.ipa || exit 1
 unzip SideStore.ipa
 cd ..
 
