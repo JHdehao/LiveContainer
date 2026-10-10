@@ -480,8 +480,34 @@ private extension Color {
     }
 }
 
+enum AltStoreSourceAppStatus {
+    case notInstalled, updateAvailable, installed
+}
+
+extension AltStoreSourceApp {
+    // Compare against installed guest apps by bundle ID; versions compared numerically ("0.1.25" > "0.1.9").
+    func status(in installedApps: [LCAppModel]) -> AltStoreSourceAppStatus {
+        guard let installed = installedApps.first(where: { $0.bundleIdentifier.caseInsensitiveCompare(bundleIdentifier) == .orderedSame }) else {
+            return .notInstalled
+        }
+        guard let latest = latestVersion?.version, let current = installed.appInfo.version() else {
+            return .installed
+        }
+        return latest.compare(current, options: .numeric) == .orderedDescending ? .updateAvailable : .installed
+    }
+}
+
+extension AltStoreSourcesViewModel {
+    func updateCount(installedApps: [LCAppModel]) -> Int {
+        let ids = sources.compactMap(\.source).flatMap(\.apps)
+            .filter { $0.status(in: installedApps) == .updateAvailable }
+            .map { $0.bundleIdentifier.lowercased() }
+        return Set(ids).count
+    }
+}
+
 struct LCSourcesView: View {
-    @StateObject private var viewModel = AltStoreSourcesViewModel()
+    @ObservedObject var viewModel: AltStoreSourcesViewModel
     @State private var errorMessage: String?
     @State private var sourcePendingRemoval: AltStoreSourcesViewModel.SourceItem?
     @ObservedObject public var searchContext: SearchContext = SearchContext()
@@ -947,10 +973,19 @@ private struct LCSourceAppBanner: View {
     let app: AltStoreSourceApp
     let source: AltStoreSource
     let installAction: (AltStoreSourceApp) -> Void
-    
+
     @AppStorage("dynamicColors") private var dynamicColors = true
     @Environment(\.colorScheme) var colorScheme
-    
+    @EnvironmentObject private var sharedModel: SharedModel
+
+    private var installButtonTitle: String {
+        switch app.status(in: sharedModel.apps + sharedModel.hiddenApps) {
+        case .notInstalled: "lc.common.install".loc
+        case .updateAvailable: "lc.sources.update".loc
+        case .installed: "lc.sources.installed".loc
+        }
+    }
+
     private var primaryColor: Color {
         guard dynamicColors else { return Color("FontColor") }
         return app.tintColor ?? source.tintColor ?? Color("FontColor")
@@ -1022,7 +1057,7 @@ private struct LCSourceAppBanner: View {
             Button {
                 installAction(app)
             } label: {
-                Text("lc.common.install".loc)
+                Text(installButtonTitle)
                     .bold()
                     .foregroundColor(.white)
                     .lineLimit(1)

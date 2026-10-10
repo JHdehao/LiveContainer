@@ -18,16 +18,19 @@ struct LCTabView: View {
     @State var shouldToggleMainWindowOpen = false
     @Environment(\.scenePhase) var scenePhase
     @StateObject var downloadHelper = DownloadHelper()
+    // Owned here (not by the Sources tab) so sources refresh at launch and the tab can show an update badge.
+    @StateObject var sourcesModel = AltStoreSourcesViewModel()
 
     let pub = NotificationCenter.default.publisher(for: UIScene.didDisconnectNotification)
     
     var body: some View {
         TabView(selection: $sharedModel.selectedTab) {
             if DataManager.shared.model.multiLCStatus != 2 {
-                LCSourcesView()
+                LCSourcesView(viewModel: sourcesModel)
                     .tabItem {
                         Label("lc.tabView.sources".loc, systemImage: "books.vertical")
                     }
+                    .badge(sourcesModel.updateCount(installedApps: sharedModel.apps + sharedModel.hiddenApps))
                     .tag(LCTabIdentifier.sources)
             }
             LCAppListView()
@@ -51,6 +54,10 @@ struct LCTabView: View {
         }
         .downloadAlert(helper: downloadHelper)
         .environmentObject(downloadHelper)
+        .onChange(of: scenePhase) { phase in
+            guard phase == .active, !sourcesModel.isRefreshingAll else { return }
+            Task { await sourcesModel.refreshAllSources() }
+        }
         .alert("lc.common.error".loc, isPresented: $errorShow){
             Button("lc.common.ok".loc, action: {
             })
